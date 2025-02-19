@@ -20,7 +20,7 @@ RUN patch -p3 < /tmp/patches/engine.patch lib/engine.js
 COPY docker-entrypoint.js ./bin/
 
 # Base de execução
-FROM arm64v8/docker:27
+FROM docker:27
 
 # Metadados e configurações padrão
 LABEL maintainer="Systemize"
