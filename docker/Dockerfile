@@ -21,5 +21,5 @@ ENV CRONICLE_echo=1
 ENV CRONICLE_color=1
 ENV debug_level=1
 ENV HOSTNAME=main
-RUN node ./bin/build.js dist && ./bin/control.sh setup
+RUN npm install && node bin/build.js dist && bin/control.sh setup && rm -Rf /root/.npm
 CMD ["node", "bin/docker-entrypoint.js"]
