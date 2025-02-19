@@ -5,6 +5,9 @@ LABEL maintainer="Systemize"
 ENV CRONICLE_VERSION=0.9.73
 WORKDIR /opt/cronicle
 
+# Instala ferramentas básicas para o build
+RUN apk add --no-cache bash curl tar
+
 # Baixa e instala o Cronicle com dependências
 RUN curl -L -o /tmp/Cronicle-${CRONICLE_VERSION}.tar.gz https://github.com/jhuckaby/Cronicle/archive/refs/tags/v${CRONICLE_VERSION}.tar.gz \
     && tar zxvf /tmp/Cronicle-${CRONICLE_VERSION}.tar.gz -C /tmp/ \
