@@ -54,6 +54,6 @@ VOLUME ["/opt/cronicle/data", "/opt/cronicle/logs", "/opt/cronicle/plugins"]
 EXPOSE 3012
 
 # Configurações de entrada
-COPY docker/entrypoint.sh /entrypoint.sh
+COPY docker/docker-entrypoint.sh /entrypoint.sh
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["sh", "/entrypoint.sh"]
