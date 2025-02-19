@@ -17,7 +17,7 @@ COPY ./patches /tmp/patches
 RUN patch -p3 < /tmp/patches/engine.patch lib/engine.js
 
 # Copia o script de entrada
-COPY docker-entrypoint.js ./bin/
+COPY docker-entrypoint.sh ./bin/
 
 # Base de execução
 FROM docker:27
