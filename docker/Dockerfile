@@ -1,5 +1,5 @@
 # Base de construção
-FROM node:22-alpine AS builder
+FROM node:22-bullseye AS builder
 LABEL maintainer="Systemize"
 
 ENV CRONICLE_VERSION=0.9.73
