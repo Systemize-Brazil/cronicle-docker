@@ -4,34 +4,34 @@ on:
   schedule:
     # Verifica novos releases a cada 24 horas
     - cron: "0 */24 * * *"
-  workflow_dispatch: # Permite rodar manualmente também
+  workflow_dispatch:
 
 jobs:
   update-cronicle:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout do repositório atual com PAT para permitir push
+      # 1. Checkout usando PAT
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
           token: ${{ secrets.PAT_TOKEN }}
 
-      # 2. Buscar última versão do repositório Cronicle
+      # 2. Corrigir URL remota
+      - name: Fix remote URL
+        run: |
+          git remote set-url origin https://x-access-token:${{ secrets.PAT_TOKEN }}@github.com/Systemize-Brazil/cronicle-docker.git
+          git remote -v
+
+      # 3. Buscar última versão do Cronicle
       - name: Get latest Cronicle release
-        id: cronicle_release
         run: |
           LATEST_RELEASE=$(curl -s https://api.github.com/repos/jhuckaby/Cronicle/releases/latest | jq -r '.tag_name')
           echo "latest_release=$LATEST_RELEASE" >> $GITHUB_ENV
           VERSION_NUMBER=$(echo "$LATEST_RELEASE" | sed 's/^v//')
           echo "version_number=$VERSION_NUMBER" >> $GITHUB_ENV
 
-      # 3. Exibir a versão capturada (debug)
-      - name: Debug version
-        run: |
-          echo "Latest version: ${{ env.version_number }}"
-
-      # 4. Verificar se a versão já está no repositório
+      # 4. Verificar se a tag já existe
       - name: Check if version already exists
         run: |
           if git rev-parse "v${{ env.version_number }}" >/dev/null 2>&1; then
@@ -39,7 +39,7 @@ jobs:
             exit 0
           fi
 
-      # 5. Atualizar ENV CRONICLE_VERSION no Dockerfile
+      # 5. Atualizar Dockerfile
       - name: Update Dockerfile version
         run: |
           sed -i "s/^ENV CRONICLE_VERSION=.*/ENV CRONICLE_VERSION=${{ env.version_number }}/" ./docker/Dockerfile
@@ -50,7 +50,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
 
-      # 7. Commit das alterações
+      # 7. Commit e push
       - name: Commit changes
         run: |
           git add ./docker/Dockerfile
