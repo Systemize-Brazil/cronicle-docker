@@ -1,0 +1,73 @@
+name: Update Cronicle Version
+
+on:
+  schedule:
+    # Verifica novos releases a cada 24 horas
+    - cron: "0 */24 * * *"
+  workflow_dispatch: # Permite rodar manualmente também
+
+jobs:
+  update-cronicle:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout do repositório atual
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # 2. Buscar última versão do repositório Cronicle
+      - name: Get latest Cronicle release
+        id: cronicle_release
+        run: |
+          LATEST_RELEASE=$(curl -s https://api.github.com/repos/jhuckaby/Cronicle/releases/latest | jq -r '.tag_name')
+          echo "latest_release=$LATEST_RELEASE" >> $GITHUB_ENV
+          # Remove o "v" inicial -> v0.9.91 => 0.9.91
+          VERSION_NUMBER=$(echo "$LATEST_RELEASE" | sed 's/^v//')
+          echo "version_number=$VERSION_NUMBER" >> $GITHUB_ENV
+
+      # 3. Exibir a versão capturada (debug)
+      - name: Debug version
+        run: | 
+          echo "Latest version: ${{env.version_number}}"
+
+      # 4. Verificar se a versão já está no repositório
+      - name: Check if version already exists
+        run: |
+          if git rev-parse "v${{ env.version_number }}" >/dev/null 2>&1; then
+            echo "Essa versão já existe. Encerrando o workflow."
+            exit 0
+          fi
+
+      # 5. Atualizar ENV CRONICLE_VERSION no Dockerfile
+      - name: Update Dockerfile version
+        run: |
+          sed -i "s/^ENV CRONICLE_VERSION=.*/ENV CRONICLE_VERSION=${{ env.version_number }}/" ./docker/Dockerfile
+
+      # 6. Configurar Git para commit
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      # 7. Commit das alterações
+      - name: Commit changes
+        run: |
+          git add ./docker/Dockerfile
+          git commit -m "Update Cronicle version to ${{ env.version_number }}"
+          git push origin HEAD:main
+
+      # 8. Criar tag
+      - name: Create Git tag
+        run: |
+          git tag "v${{ env.version_number }}"
+          git push origin "v${{ env.version_number }}"
+
+      # 9. Criar release no GitHub
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: "v${{ env.version_number }}"
+          name: "Cronicle ${{ env.version_number }}"
+          body: "Atualização automática para a versão ${{ env.version_number }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
