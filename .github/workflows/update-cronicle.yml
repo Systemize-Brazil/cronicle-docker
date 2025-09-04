@@ -11,9 +11,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout do repositório atual
+      # 1. Checkout do repositório atual com PAT para permitir push
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.PAT_TOKEN }}
 
       # 2. Buscar última versão do repositório Cronicle
       - name: Get latest Cronicle release
@@ -21,14 +23,13 @@ jobs:
         run: |
           LATEST_RELEASE=$(curl -s https://api.github.com/repos/jhuckaby/Cronicle/releases/latest | jq -r '.tag_name')
           echo "latest_release=$LATEST_RELEASE" >> $GITHUB_ENV
-          # Remove o "v" inicial -> v0.9.91 => 0.9.91
           VERSION_NUMBER=$(echo "$LATEST_RELEASE" | sed 's/^v//')
           echo "version_number=$VERSION_NUMBER" >> $GITHUB_ENV
 
       # 3. Exibir a versão capturada (debug)
       - name: Debug version
-        run: | 
-          echo "Latest version: ${{env.version_number}}"
+        run: |
+          echo "Latest version: ${{ env.version_number }}"
 
       # 4. Verificar se a versão já está no repositório
       - name: Check if version already exists
@@ -43,12 +44,11 @@ jobs:
         run: |
           sed -i "s/^ENV CRONICLE_VERSION=.*/ENV CRONICLE_VERSION=${{ env.version_number }}/" ./docker/Dockerfile
 
-      # 6. Configurar Git para commit
+      # 6. Configurar Git
       - name: Configure Git
         run: |
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git config --global user.name "github-actions[bot]"
-          git push https://x-access-token:${{ secrets.PAT_TOKEN }}@github.com/Systemize-Brazil/cronicle-docker.git HEAD:main
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
 
       # 7. Commit das alterações
       - name: Commit changes
@@ -71,4 +71,4 @@ jobs:
           name: "Cronicle ${{ env.version_number }}"
           body: "Atualização automática para a versão ${{ env.version_number }}"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
