@@ -46,8 +46,9 @@ jobs:
       # 6. Configurar Git para commit
       - name: Configure Git
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git push https://x-access-token:${{ secrets.PAT_TOKEN }}@github.com/Systemize-Brazil/cronicle-docker.git HEAD:main
 
       # 7. Commit das alterações
       - name: Commit changes
