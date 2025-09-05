@@ -1,74 +1,92 @@
+# Nome do Workflow
 name: Update Cronicle Version
 
+# Gatilhos que iniciam o workflow
 on:
   schedule:
-    # Verifica novos releases a cada 24 horas
+    # Executa a verificação a cada 24 horas
     - cron: "0 */24 * * *"
+  # Permite a execução manual a partir da interface do GitHub
   workflow_dispatch:
 
 jobs:
-  update-cronicle:
+  # Job 1: Apenas verifica se existe uma nova versão
+  check-for-updates:
     runs-on: ubuntu-latest
-
+    outputs:
+      needs_update: ${{ steps.version_check.outputs.needs_update }}
+      new_version: ${{ steps.version_check.outputs.new_version }}
     steps:
-      # 1. Checkout usando PAT
+      # Faz o checkout para poder ler o Dockerfile
       - name: Checkout repository
-        uses: actions/checkout@v3
-        with:
-          token: ${{ secrets.PAT_TOKEN }}
+        uses: actions/checkout@v4
 
-      # 2. Corrigir URL remota
-      - name: Fix remote URL
+      # Busca a última versão e a versão atual
+      - name: Get latest and current versions
+        id: version_check
         run: |
-          git remote set-url origin https://x-access-token:${{ secrets.PAT_TOKEN }}@github.com/Systemize-Brazil/cronicle-docker.git
-          git remote -v
+          # Busca a última versão do Cronicle
+          LATEST_TAG=$(curl -s https://api.github.com/repos/jhuckaby/Cronicle/releases/latest | jq -r '.tag_name')
+          VERSION_NUMBER=$(echo "$LATEST_TAG" | sed 's/^v//')
+          echo "Última versão encontrada no GitHub: $VERSION_NUMBER"
+          
+          # Extrai a versão atual do Dockerfile. O '|| echo ""' evita que o grep falhe se a linha não existir.
+          CURRENT_VERSION=$(grep 'ENV CRONICLE_VERSION' ./docker/Dockerfile | cut -d'=' -f2 || echo "")
+          echo "Versão atual no Dockerfile: $CURRENT_VERSION"
 
-      # 3. Buscar última versão do Cronicle
-      - name: Get latest Cronicle release
-        run: |
-          LATEST_RELEASE=$(curl -s https://api.github.com/repos/jhuckaby/Cronicle/releases/latest | jq -r '.tag_name')
-          echo "latest_release=$LATEST_RELEASE" >> $GITHUB_ENV
-          VERSION_NUMBER=$(echo "$LATEST_RELEASE" | sed 's/^v//')
-          echo "version_number=$VERSION_NUMBER" >> $GITHUB_ENV
-
-      # 4. Verificar se a tag já existe
-      - name: Check if version already exists
-        run: |
-          if git rev-parse "v${{ env.version_number }}" >/dev/null 2>&1; then
-            echo "Essa versão já existe. Encerrando o workflow."
-            exit 0
+          # Compara as versões e define a saída para o próximo job
+          if [ "$CURRENT_VERSION" == "$VERSION_NUMBER" ]; then
+            echo "A versão do Cronicle já está atualizada. Nenhuma ação é necessária."
+            echo "needs_update=false" >> $GITHUB_OUTPUT
+          else
+            echo "Nova versão ($VERSION_NUMBER) encontrada. O workflow de atualização continuará."
+            echo "needs_update=true" >> $GITHUB_OUTPUT
+            echo "new_version=$VERSION_NUMBER" >> $GITHUB_OUTPUT
           fi
 
-      # 5. Atualizar Dockerfile
+  # Job 2: Executa a atualização, somente se o Job 1 indicar que é necessário
+  update-version:
+    # Este job depende do sucesso do job de verificação
+    needs: check-for-updates
+    # Condição para executar: somente se a saída 'needs_update' do job anterior for 'true'
+    if: needs.check-for-updates.outputs.needs_update == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Faz o checkout do código do repositório
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # O token é necessário para poder fazer push das alterações
+          token: ${{ secrets.PAT_TOKEN }}
+
+      # 2. Atualiza o Dockerfile com a nova versão
       - name: Update Dockerfile version
         run: |
-          sed -i "s/^ENV CRONICLE_VERSION=.*/ENV CRONICLE_VERSION=${{ env.version_number }}/" ./docker/Dockerfile
+          # Usa a versão passada como output pelo job 'check-for-updates'
+          sed -i "s/^ENV CRONICLE_VERSION=.*/ENV CRONICLE_VERSION=${{ needs.check-for-updates.outputs.new_version }}/" ./docker/Dockerfile
+          echo "Dockerfile atualizado para a versão ${{ needs.check-for-updates.outputs.new_version }}"
 
-      # 6. Configurar Git
-      - name: Configure Git
+      # 3. Configura o Git, faz o commit e envia as alterações
+      - name: Commit and Push changes
         run: |
+          # Configura o usuário do Git para o bot do GitHub Actions
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
 
-      # 7. Commit e push
-      - name: Commit changes
-        run: |
+          # Adiciona o arquivo modificado e cria o commit
           git add ./docker/Dockerfile
-          git commit -m "Update Cronicle version to ${{ env.version_number }}"
+          git commit -m "chore: Update Cronicle to v${{ needs.check-for-updates.outputs.new_version }}"
+
+          # Faz o push para o branch principal
           git push origin HEAD:main
 
-      # 8. Criar tag
-      - name: Create Git tag
-        run: |
-          git tag "v${{ env.version_number }}"
-          git push origin "v${{ env.version_number }}"
-
-      # 9. Criar release no GitHub
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+      # 4. Cria uma nova Tag e um Release no GitHub
+      - name: Create GitHub Tag and Release
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: "v${{ env.version_number }}"
-          name: "Cronicle ${{ env.version_number }}"
-          body: "Atualização automática para a versão ${{ env.version_number }}"
+          tag_name: "v${{ needs.check-for-updates.outputs.new_version }}"
+          name: "Cronicle v${{ needs.check-for-updates.outputs.new_version }}"
+          body: "Atualização automática para a versão do Cronicle ${{ needs.check-for-updates.outputs.new_version }}."
         env:
+          # O token do GitHub é necessário para criar o release
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
