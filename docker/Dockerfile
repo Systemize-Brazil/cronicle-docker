@@ -2,7 +2,7 @@
 FROM node:22-bullseye AS builder
 LABEL maintainer="Systemize"
 
-ENV CRONICLE_VERSION=0.9.118
+ENV CRONICLE_VERSION=0.9.119
 WORKDIR /opt/cronicle
 
 # Baixa e instala o Cronicle com dependências
